@@ -245,3 +245,79 @@ class MainActivity : AppCompatActivity() {
 }
 ```
 
+## Preview 사용 예제 구현
+카메라 애플리케이션에서 뷰파인더를 사용하면 사용자가 촬영할 사진을 미리 볼 수 있다. CameraX `Preview`클래스를 사용하여 뷰파인더를 구현한다
+
+`Preview`를 사용하려면 먼저 구성을 정의해야 이를 사용하여 사용 사례 인스턴스를 만들 수 있다. 결과 인스턴스는 CameraX 수명 주기에 바인딩하는 대상이다.
+
+1. startCamera() 구현
+
+```kotlin
+private fun startCamera() {
+   val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+
+   cameraProviderFuture.addListener({
+       // Used to bind the lifecycle of cameras to the lifecycle owner
+       val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+
+       // Preview
+       val preview = Preview.Builder()
+          .build()
+          .also {
+              it.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
+          }
+
+       // Select back camera as a default
+       val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+       try {
+           // Unbind use cases before rebinding
+           cameraProvider.unbindAll()
+
+           // Bind use cases to camera
+           cameraProvider.bindToLifecycle(
+               this, cameraSelector, preview)
+
+       } catch(exc: Exception) {
+           Log.e(TAG, "Use case binding failed", exc)
+       }
+
+   }, ContextCompat.getMainExecutor(this))
+}
+```
+
+- `ProcessCameraProvider`인스턴스를 만든다.
+  - 카메라의 수명 주기를 수명 주기 소유자와 바인딩하는 데 사용
+  - CameraX가 수명 주기를 인식하므로 카메라를 열고 닫는 작업이 필요하지 않다
+
+> val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+
+- `cameraProviderFuture`에 리스너를 추가한다.
+  - `Runnable`을 하나의 인수로 추가한다. 나중에 채워넣는다.
+  - `ContextCompat``.getMainExecutor()`를 두 번째 인수로 추가한다. 그러면 `기본 스레드`에서 실행되는 `Executor`가 반환된다.
+
+> cameraProviderFuture.addListener(Runnable {}, ContextCompat.getMainExecutor(this))
+
+- `Runnable`에서 `ProcessCameraProvider`를 추가한다. 이는 카메라의 수명 주기를 애플리케이션 프로세스 내의 `LifecycleOwner`에 바인딩하는 데 사용한다.
+
+> val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+
+- `Preview` 객체를 초기화하고 이 객체에서 build를 호출하고 뷰파인더에서 노출 영역 제공자를 가져온 다음 미리보기에서 설정한다
+
+> val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+- `try` 블록을 만든다.
+  - 이 블록 내에서 `cameraProvider`에 바인딩된 항목이 없도록 한다
+  - `cameraSelector` 및 미리보기 객체를 `cameraProvider`에 바인딩한다
+
+> try {
+cameraProvider.unbindAll()
+cameraProvider.bindToLifecycle(
+this, cameraSelector, preview)
+}
+
+- 앱에 더 이상 포커스가 없는 경우와 같이 이 코드는 몇 가지 원인에 의해 실패할 수 있다.
+  - 다음 코드를 `catch` 블록 내에 wrapping하여 실패가 발생한 경우 기록한다
+
+> catch(e: Exception){ Log.e(TAG, "UseCase binding failed", e) }
+
