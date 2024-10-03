@@ -245,7 +245,7 @@ class MainActivity : AppCompatActivity() {
 }
 ```
 
-## Preview 사용 예제 구현
+# Preview 사용 예제 구현
 카메라 애플리케이션에서 뷰파인더를 사용하면 사용자가 촬영할 사진을 미리 볼 수 있다. CameraX `Preview`클래스를 사용하여 뷰파인더를 구현한다
 
 `Preview`를 사용하려면 먼저 구성을 정의해야 이를 사용하여 사용 사례 인스턴스를 만들 수 있다. 결과 인스턴스는 CameraX 수명 주기에 바인딩하는 대상이다.
@@ -320,4 +320,139 @@ this, cameraSelector, preview)
   - 다음 코드를 `catch` 블록 내에 wrapping하여 실패가 발생한 경우 기록한다
 
 > catch(e: Exception){ Log.e(TAG, "UseCase binding failed", e) }
+
+# ImageCapture 사용 사례 구현
+다른 사용 사례도 `Preview`와 매우 유사한 방식으로 작동한다. 먼저 실제 사용 사례 객체를 인스턴스화하는 데 사용하는 구성 객체를 정의한다.
+사진을 캡처하려면 `Take Photo` 버튼을 누르면 호출되는 `takePhoto()` 메서드를 구현한다.
+
+1. `takePhoto()` 구현
+
+- 먼저 `ImageCapture` 사용 사례에 대한 참조를 가져온다.
+  - 사용 사례가 null이면 함수를 종료한다.
+  - 이미지 캡처가 설정되기 전에 사진 버튼을 탭하면 null이 된다.
+  - `return`문이 없으면 `null`인 경우 앱이 비정상적으로 종료된다.
+```kotlin
+val imageCapture = imageCapture?: return
+```
+
+- 다음으로 이미지를 보관할 `MediaStore` 콘텐츠 값을 만든다.
+  - MediaStroe의 표시 이름이 고유하도록 `타임스탬프`를 사용한다.
+
+```kotlin
+import java.text.SimpleDateFormat
+import java.util.Locale
+
+val name = SimpleDateFormat(FILENAME_FROMAT, Locale.KOREA).format(System.currentTimeMillis())
+
+val contentValues = ContentValues().apply{
+    put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+    put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+    if (Build.VERSION.SDK_INT > Build.VERSIONT_CODES.P){
+        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/CameraX-Image")
+    }
+}
+```
+- `OutputFileOptions` 객체를 만든다.
+  - 이 객체에서 원하는 출력방법에 대한 사항을 지정할 수 있다.
+  - 출력을 `MediaStore`에 저장하여 다른 앱에서 표시할 수 있도록 MediaStore 항목을 추가한다.
+
+```kotlin
+val outputOptions = ImageCapture.OutputFileOptions.Builder(contentResolver, MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues).build()
+```
+
+- `imageCapture` 객체에서 `takePicture()`를 호출한다.
+  - `outputOptions`, 실행자, 이미지가 저장될 때의 콜백을 저장한다.
+  - 그 다음에 콜백을 작성한다.
+
+```kotlin
+imageCapture.takePicture(
+    // 출력방식
+    outputOptions,
+    // 실행자
+    ContextCompat.getMainExecutor(this),
+    // 이미지가 저장될 때의 콜백
+    object: ImageCapture.OnImageSavedCallback {}
+)
+```
+- 이미지 캡처에 실패하거나 이미지 캡처 저장에 실패하는 경우 오류 사례를 추가하여 실패했음을 기록한다.
+  - object: ImageCapture.OnImageSavedCallback의 블록 안에 작성한다.
+```kotlin
+override fun onError(e: ImageCaptureException){
+    Log.e(TAG, "Photo capture failedL ${e.message}", e)
+}
+```
+- 캡처에 실패하지 않았으면 사진이 성공적으로 촬영된 것이다.
+  - 앞서 만든 파일에 사진을 저장한다.
+  - 사용자에게 사진 촬영이 완료되었음을 알리는 Toast 메시지를 표시한다.
+  - 로그 구문을 출력한다.
+  - object: ImageCapture.OnImageSavedCallback의 블록 안에 작성한다.
+
+```kotlin
+override fun onImageSaved(output: ImageCapture.OutputFileResults){
+    // 사진이 저장된 경로를 기록한다
+    val msg = "Photo capture succeeded: ${output.savedUri}"
+    // 사용자에게 Toast 메시지를 표시하여 사진촬영이 완료되었음을 알린다
+    Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
+    Log.d(TAG, msg)
+}
+```
+
+- `takePhoto`메서드 전체 코드 
+```kotlin
+private fun takePhoto() {
+   val imageCapture = imageCapture ?: return
+
+   val name = SimpleDateFormat(FILENAME_FORMAT, Locale.US)
+              .format(System.currentTimeMillis())
+   val contentValues = ContentValues().apply {
+       put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+       put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+       if(Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
+           put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/CameraX-Image")
+       }
+   }
+
+   val outputOptions = ImageCapture.OutputFileOptions
+           .Builder(contentResolver,
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    contentValues)
+           .build()
+
+   imageCapture.takePicture(
+       outputOptions,
+       ContextCompat.getMainExecutor(this),
+       object : ImageCapture.OnImageSavedCallback {
+           override fun onError(exc: ImageCaptureException) {
+               Log.e(TAG, "Photo capture failed: ${exc.message}", exc)
+           }
+
+           override fun
+               onImageSaved(output: ImageCapture.OutputFileResults){
+               val msg = "Photo capture succeeded: ${output.savedUri}"
+               Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
+               Log.d(TAG, msg)
+           }
+       }
+   )
+}
+```
+
+2. `startCamera()` 메서드로 이동하여 이 코드를 미리보기용 코드 아래에 복사한다.
+
+```kotlin
+imageCapture = ImageCapture.Builder().build()
+```
+3. 새로운 사용 사례를 포함하도록 `try`블록에서 `bindToLifecycle()`호출을 업데이트 한다.
+```kotlin
+cameraProvider.bindToLifecycle(
+  this, // lifecycle
+  cameraSelector, // CamerSelector
+  preview, // UseCase
+  imageCapture
+)
+```
+
+
+
+
 

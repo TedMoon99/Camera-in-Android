@@ -77,6 +77,7 @@ class MainActivity : AppCompatActivity() {
         // Executor 종료
         cameraExecutor.shutdown()
     }
+    // ImageCapture 사용사례 구현
     private fun takePhoto() {
         // Get a stable reference of a modifiable capture use case
         val imageCapture = imageCapture ?: return
@@ -102,6 +103,7 @@ class MainActivity : AppCompatActivity() {
             outputOptions,
             ContextCompat.getMainExecutor(this),
             object: ImageCapture.OnImageSavedCallback{
+                // 이미지가 저장될 때의 콜백
                 override fun onError(e: ImageCaptureException) {
                     Log.e(TAG, "Photo Capture has been failed: ${e}", e)
                 }
