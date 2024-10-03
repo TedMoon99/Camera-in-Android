@@ -34,6 +34,7 @@ import androidx.camera.video.VideoRecordEvent
 import androidx.core.content.PermissionChecker
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.example.camerapractice.analysis.LuminosityAnalyzer
 import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -128,7 +129,14 @@ class MainActivity : AppCompatActivity() {
             val cameraProvider = cameraProviderFuture.get()
             // Preview
             val preview = Preview.Builder().build().also { it.setSurfaceProvider(binding.viewFinder.surfaceProvider) }
+            // ImageCapture
             imageCapture = ImageCapture.Builder().build()
+            // ImageAnalysis
+            val imageAnalyzer = ImageAnalysis.Builder().build().also {
+                it.setAnalyzer(cameraExecutor, LuminosityAnalyzer { luma ->
+                    Log.d(TAG, "Average luminosity: $luma")
+                })
+            }
             // Select back camera as a default
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
@@ -137,7 +145,7 @@ class MainActivity : AppCompatActivity() {
                 cameraProvider.unbindAll()
 
                 // Bind use cases to camera
-                cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture)
+                cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture, imageAnalyzer)
             } catch (e: Exception){
                 Log.e(TAG, "Use case binding failed", e)
             }

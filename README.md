@@ -452,6 +452,66 @@ cameraProvider.bindToLifecycle(
 )
 ```
 
+# ImageAnalysis 구현
+
+- `ImageAnalysis` 기능을 사용하면 더 재밋는 카메라 앱을 만들 수 있다.
+  - `ImageAnalysis.Analyzer` 인터페이스를 구현하고, 수신되는 카메라 프레임으로 호출되는 맞춤 클래스를 정의할 수 있다.
+  - 카메라 세션 상태를 관리하거나 이미지를 삭제할 필요도 없다.
+  - 다른 수명주기 인식 구성요소와 마찬가지로 앱에서 원하는 수명주기에 바인딩하는 것으로 충분하다.
+
+1. ~~이 분석도구를 `MainActivity.kt`의 내부 클래스로 추가한다.~~ 나는 analysis 패키지에 LuminosityAnalyzer 클래스로 구현하였다.
+- 분석 도구는 이미지의 평균 광도를 기록한다.
+  - 분석 도구를 만드려면 `ImageAnalysis.Analyzer` 인터페이스를 구현하는 클래스에서 `analyze`함수를 재정의한다.
+
+```kotlin
+package com.example.camerapractice.analysis
+
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
+import com.example.camerapractice.LumaListener
+import java.nio.ByteBuffer
+
+class LuminosityAnalyzer(private val listener: LumaListener): ImageAnalysis.Analyzer {
+  override fun analyze(image: ImageProxy) {
+    val buffer = image.planes[0].buffer
+    val data = buffer.toByteArray()
+    val pixels = data.map { it.toInt() and 0xFF }
+    val luma = pixels.average()
+    
+    listener(luma)
+    image.close()
+  }
+
+  private fun ByteBuffer.toByteArray(): ByteArray{
+    rewind() // Buffer를 0으로 되감기
+    val data = ByteArray(remaining())
+    get(data) // Buffer를 Byte Array로 복사한다
+    return data
+  }
+}
+```
+2. `startCamera()` 메서드에서 `imageCaputre` 코드 아래에 다음 코드를 추가한다
+
+```kotlin
+// ImageAnalysis
+ImageAnalysis.Builder().build().also {
+  it.setAnalyzer(cameraExecutor, LuminosityAnalyzer { luma ->
+    Log.d(TAG, "Average luminosity: $luma")
+  })
+}
+```
+
+3. `imageAnalyzer`를 포함하도록 `cameraProvider`에서 `bindToLifecycle()`호출을 업데이트한다. 
+
+```kotlin
+cameraProvider.bindToLifecycle(
+    this,
+    cameraSelector,
+    preview,
+    imageCapture,
+    imageAnalyzer
+)
+```
 
 
 
